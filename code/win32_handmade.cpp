@@ -20,7 +20,6 @@ typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
 
-global_variable bool Running;
 
 struct win32_offscreen_buffer{
 	BITMAPINFO Info;
@@ -31,8 +30,10 @@ struct win32_offscreen_buffer{
 	int BytesPerPixel;
 };
 
+global_variable bool Running;
+global_variable win32_offscreen_buffer GlobalBackBuffer;
 
-internal void RenderWeirdGradient(win32_offscreen_buffer Buffer, int XOffset,int YOffset)
+internal void RenderWeirdGradient(win32_offscreen_buffer Buffer, int BlueOffset,int GreenOffset)
 {
 	uint8 *Row = (uint8 *)Buffer.Memory; // cast the void pointer BitmapMemory to unsigned 8 bit int
 	for (int Y = 0; Y < Buffer.Height; ++Y)
@@ -43,10 +44,10 @@ internal void RenderWeirdGradient(win32_offscreen_buffer Buffer, int XOffset,int
 		for (int X = 0; X <Buffer.Width; ++X) 
 		{
 
-			*Pixel = (uint8)(X+XOffset); //Blue
+			*Pixel = (uint8)(X+BlueOffset); //Blue
 			++Pixel;
 
-			*Pixel = (uint8)(Y+YOffset); //Green
+			*Pixel = (uint8)(Y+GreenOffset); //Green
 			++Pixel;
 
 			*Pixel = 0; //Red
@@ -68,7 +69,9 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
 	}
 
 	Buffer->Width = Width;
-	Buffer->Height = Height;
+	Buffer->Height = Height; 
+	Buffer->BytesPerPixel = 4;
+	
 	Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
 	Buffer->Info.bmiHeader.biWidth = Buffer->Width;
 	Buffer->Info.bmiHeader.biHeight = -Buffer->Height; // negative top yield a 'top down'
@@ -82,7 +85,7 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
 	Buffer->Pitch = Width * Buffer->BytesPerPixel;  // Pitch is the difference between rows of pixels in Bytes
 }
 
-internal void Win32CopyBufferInWindow(HDC DeviceContext, RECT ClientRect, win32_offscreen_buffer Buffer, int x, int y, int Width, int Height)
+internal void Win32DisplayBufferInWindow(HDC DeviceContext, RECT ClientRect, win32_offscreen_buffer Buffer, int x, int y, int Width, int Height)
 {
 	int WindowWidth = ClientRect.right - ClientRect.left; 
 	int WindowHeight = ClientRect.bottom - ClientRect.top;
@@ -111,8 +114,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
 		GetClientRect(Window, &ClientRect);
 		int Width = ClientRect.right - ClientRect.left;
 		int Height = ClientRect.bottom - ClientRect.top;
-		Win32ResizeDIBSection(Width, Height);
-		OutputDebugStringA("WM_SIZE\n");
+		Win32ResizeDIBSection(&GlobalBackBuffer, Width, Height);
 	}
 	break;
 
@@ -148,7 +150,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
 		int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
 		RECT ClientRect;
 		GetClientRect(Window, &ClientRect);
-		Win32CopyBufferToWindow(DeviceContext, ClientRect, X, Y, Width, Height);
+		Win32DisplayBufferInWindow(DeviceContext, ClientRect, GlobalBackBuffer, X, Y, Width, Height);
 		EndPaint(Window, &Paint);
 	}
 	break;
@@ -196,13 +198,13 @@ int CALLBACK WinMain(
 
 		if (Window)
 		{
-			int XOffset=0;
-			int YOffset=0;
+			int BlueOffset=0;
+			int GreenOffset=0;
 
 			Running = true;
 			while (Running)
 			{
-				//https://youtu.be/w7ay7QXmo_o?t=922
+				//
 				MSG Message;
 				while(PeekMessage(&Message, 0, 0, 0,PM_REMOVE))
 				{
@@ -214,18 +216,18 @@ int CALLBACK WinMain(
 					TranslateMessage(&Message);
 					DispatchMessageA(&Message);
 				}
-				RenderWeirdGradient(XOffset,YOffset);
+				RenderWeirdGradient(GlobalBackBuffer,BlueOffset,GreenOffset);
 
 				RECT ClientRect;
 				HDC DeviceContext = GetDC(Window);
 				GetClientRect(Window, &ClientRect);
 				int WindowWidth = ClientRect.right - ClientRect.left;
 				int WindowHeight = ClientRect.bottom - ClientRect.top;
-				Win32CopyBufferToWindow( DeviceContext, ClientRect, 0, 0, WindowWidth, WindowHeight);
+				Win32DisplayBufferInWindow(DeviceContext, ClientRect, GlobalBackBuffer, 0, 0, WindowWidth, WindowHeight);
 				ReleaseDC(Window,DeviceContext);
 
-				++XOffset;
-				++YOffset;
+				++BlueOffset;
+				++GreenOffset;
 			}
 		}
 		else
