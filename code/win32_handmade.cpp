@@ -1,4 +1,4 @@
-
+//https://youtu.be/w7ay7QXmo_o?t=2846
 
 #include <Windows.h>
 #include <stdint.h> //for accss to unit8_t type
@@ -102,9 +102,10 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
 
 internal void Win32DisplayBufferInWindow(HDC DeviceContext, int WindowWidth, int WindowHeight, win32_offscreen_buffer Buffer, int x, int y, int Width, int Height)
 {
+	//TODO: Aspect Ratio Correction
 	StretchDIBits(DeviceContext,
-				  0, 0, Buffer.Width, Buffer.Height,
 				  0, 0, WindowWidth, WindowHeight,
+				  0, 0, Buffer.Width, Buffer.Height,
 				  Buffer.Memory,
 				  &Buffer.Info,
 				  DIB_RGB_COLORS, SRCCOPY);
@@ -122,8 +123,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
 	{
 	case WM_SIZE:
 	{
-		win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-		Win32ResizeDIBSection(&GlobalBackBuffer, Dimension.Width, Dimension.Height);
+
 	}
 	break;
 
@@ -182,11 +182,16 @@ int CALLBACK WinMain(
 {
 
 	WNDCLASS WindowClass = {}; // declares a WNDCLASS instance 'windowClass', with members initialized to 0.
+
+	Win32ResizeDIBSection(&GlobalBackBuffer, 1280,720);
+
 	WindowClass.style = CS_HREDRAW | CS_VREDRAW; // bitfield flags to define windowstyle see MSDN
 	WindowClass.lpfnWndProc = Win32MainWindowCallback;// pointer to a function that defines window's response to events
 	WindowClass.hInstance = Instance; // reference to the instance of this window, from WinMain function.(Could also use GetModuleHandle)
 	// WindowClass.hIcon = ; // icon for window
 	WindowClass.lpszClassName = "handmadeHeroWindowClass";
+
+
 
 	if (RegisterClass(&WindowClass))
 	{
