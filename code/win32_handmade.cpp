@@ -1,7 +1,8 @@
-//https://youtu.be/w7ay7QXmo_o?t=2846
+//
 
 #include <Windows.h>
 #include <stdint.h> //for accss to unit8_t type
+#include <xinput.h> //for xbox controller
 
 // these #defines reuse 'static' with more clarfied intent
 #define internal static
@@ -33,6 +34,41 @@ struct win32_window_dimension{
 	int Width;
 	int Height;
 };
+
+
+/*
+loading XInputGetState  & XInputSetState directly from xinput.h dll
+https://youtu.be/J3y1x54vyIQ?t=1255
+
+l33t pointer to a function defined elsewhwere macro crap
+I don't quite get
+ 
+https://youtu.be/J3y1x54vyIQ?t=1745
+
+*/
+
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD  dwUserIndex,XINPUT_STATE* pState )
+typedef X_INPUT_GET_STATE(x_input_get_state);
+X_INPUT_GET_STATE(XInputGetStateStub){
+	return(0);
+}
+
+#define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex,XINPUT_VIBRATION* pVibration )
+typedef X_INPUT_SET_STATE(x_input_set_state);
+
+
+X_INPUT_SET_STATE(XInputSetStateStub){
+	return(0);
+}
+
+global_variable x_input_get_state *XInputGetState_ = XInputGetStateStub;
+global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
+
+#define XInputGetState XInputGetState_
+#define XInputSetState XInputSetState_
+
+// end l33t crap
+
 
 win32_window_dimension Win32GetWindowDimension(HWND Window){
 
@@ -229,6 +265,24 @@ int CALLBACK WinMain(
 					TranslateMessage(&Message);
 					DispatchMessageA(&Message);
 				}
+				//todo: should we poll this more frequently?
+
+				DWORD dwResult;    
+				for (DWORD i=0; i< XUSER_MAX_COUNT; i++ )
+				{
+					XINPUT_STATE state;
+					ZeroMemory( &state, sizeof(XINPUT_STATE) );
+
+					// Simply get the state of the controller from XInput.
+					dwResult = XInputGetState( i, &state );
+					if( dwResult == ERROR_SUCCESS )
+					{
+						// Controller is connected 
+					}else{
+						// Controller is not connected 
+					}
+				}
+
 				RenderWeirdGradient(GlobalBackBuffer,BlueOffset,GreenOffset);
 
 				HDC DeviceContext = GetDC(Window);
