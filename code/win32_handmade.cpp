@@ -274,14 +274,14 @@ int CALLBACK WinMain(
 	WindowClass.lpfnWndProc = Win32MainWindowCallback; // pointer to a function that defines window's response to events
 	WindowClass.hInstance = Instance;				   // reference to the instance of this window, from WinMain function.(Could also use GetModuleHandle)
 	// WindowClass.hIcon = ; // icon for window
-	WindowClass.lpszClassName = "handmadeHeroWindowClass";
+	WindowClass.lpszClassName = TEXT("handmadeHeroWindowClass");
 
 	if (RegisterClass(&WindowClass))
 	{
 		HWND Window = CreateWindowEx(
 			0,
 			WindowClass.lpszClassName,
-			"Handmade Hero",
+			TEXT("Handmade Hero"),
 			WS_OVERLAPPEDWINDOW | WS_VISIBLE,
 			CW_USEDEFAULT,
 			CW_USEDEFAULT,
