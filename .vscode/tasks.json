@@ -1,40 +1,27 @@
 {
     "version": "2.0.0",
     "tasks": [
-        {
-            "label": "msvc build",
-            "type": "shell",
-            "command": "cl.exe",
-            "args": [
-                "/FAsc",
-                "/EHsc",
-                "/Zi",
-                "/Fe:",
-                "build/win32_handmade.exe",
-                "code/win32_handmade.cpp",
-                "user32.lib",
-                "Gdi32.lib"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "presentation": {
-                "reveal": "always"
-            },
-            "problemMatcher": "$msCompile"
+      { 
+        "type": "process",
+        "label": "cl.exe build active file",
+        "command": "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat",
+        "args": [
+          "&",
+          "cl.exe",
+          "/Zi",
+          "${workspaceFolder}/code/win32_handmade.cpp",
+          "user32.lib"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/build"
         },
-        {
-            "type": "shell",
-            "label": "cl.exe build active file",
-            "command": "cl.exe",
-            "args": [
-                "/Zi",
-                "/EHsc",
-                "/Fe:",
-                "${fileDirname}\\${fileBasenameNoExtension}.exe",
-                "${file}"
-            ]
+        "problemMatcher": [
+          "$msCompile"
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": true
         }
+      }
     ]
-}
+  }
