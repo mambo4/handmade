@@ -30,7 +30,7 @@ struct win32_offscreen_buffer
 	int Width;
 	int Height;
 	int Pitch;
-	int BytesPerPixel;
+	// int BytesPerPixel; (always 4 bytes 32 bits memory order BB GG RR XX)
 };
 
 struct win32_window_dimension
@@ -171,7 +171,7 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
 
 	Buffer->Width = Width;
 	Buffer->Height = Height;
-	Buffer->BytesPerPixel = 4;
+	int BytesPerPixel = 4;
 
 	Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
 	Buffer->Info.bmiHeader.biWidth = Buffer->Width;
@@ -180,18 +180,18 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
 	Buffer->Info.bmiHeader.biBitCount = 32;
 	Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
-	int BitmapMemorySize = (Buffer->Width * Buffer->Height) * Buffer->BytesPerPixel;
+	int BitmapMemorySize = (Buffer->Width * Buffer->Height) * BytesPerPixel;
 	Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 
-	Buffer->Pitch = Width * Buffer->BytesPerPixel; // Pitch is the difference between rows of pixels in Bytes
+	Buffer->Pitch = Width * BytesPerPixel; // Pitch is the difference between rows of pixels in Bytes
 }
 
-internal void Win32DisplayBufferInWindow(HDC DeviceContext, int WindowWidth, int WindowHeight, win32_offscreen_buffer Buffer, int x, int y, int Width, int Height)
+internal void Win32DisplayBufferInWindow(HDC DeviceContext, int WindowWidth, int WindowHeight, win32_offscreen_buffer Buffer)
 {
 	// TODO: Aspect Ratio Correction
 	StretchDIBits(DeviceContext,
-				  0, 0, WindowWidth, WindowHeight,
-				  0, 0, Buffer.Width, Buffer.Height,
+				  0, 0, WindowWidth, WindowHeight,// Xpos,Ypos,W,H
+				  0, 0, Buffer.Width, Buffer.Height,// Xpos,Ypos,W,H
 				  Buffer.Memory,
 				  &Buffer.Info,
 				  DIB_RGB_COLORS, SRCCOPY);
@@ -243,7 +243,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
 		int Width = Paint.rcPaint.right - Paint.rcPaint.left;
 		int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
 		win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-		Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackBuffer, X, Y, Width, Height);
+		Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackBuffer);
 		EndPaint(Window, &Paint);
 	}
 	break;
@@ -266,7 +266,8 @@ int CALLBACK WinMain(
 	int ShowCode)
 {
 
-	WNDCLASS WindowClass = {}; // declares a WNDCLASS instance 'windowClass', with members initialized to 0.
+	WNDCLASS WindowClass = {}; //
+	
 
 	Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
 
@@ -274,14 +275,14 @@ int CALLBACK WinMain(
 	WindowClass.lpfnWndProc = Win32MainWindowCallback; // pointer to a function that defines window's response to events
 	WindowClass.hInstance = Instance;				   // reference to the instance of this window, from WinMain function.(Could also use GetModuleHandle)
 	// WindowClass.hIcon = ; // icon for window
-	WindowClass.lpszClassName = TEXT("handmadeHeroWindowClass");
+	WindowClass.lpszClassName = "handmadeHeroWindowClass";
 
 	if (RegisterClass(&WindowClass))
 	{
 		HWND Window = CreateWindowEx(
 			0,
 			WindowClass.lpszClassName,
-			TEXT("Handmade Hero"),
+			"Handmade Hero",
 			WS_OVERLAPPEDWINDOW | WS_VISIBLE,
 			CW_USEDEFAULT,
 			CW_USEDEFAULT,
@@ -338,7 +339,7 @@ int CALLBACK WinMain(
 
 				HDC DeviceContext = GetDC(Window);
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-				Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackBuffer, 0, 0, Dimension.Width, Dimension.Height);
+				Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackBuffer);
 				ReleaseDC(Window, DeviceContext);
 
 				++BlueOffset;
@@ -358,5 +359,3 @@ int CALLBACK WinMain(
 
 	return (0);
 }
-
-
