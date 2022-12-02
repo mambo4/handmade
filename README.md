@@ -2,6 +2,9 @@
 - following handmade hero
 - to learn more real programming
 
+# current video spot
+https://youtu.be/J3y1x54vyIQ?t=3634
+
 # video links
 - [Day 005 windows Graphics recap ](https://www.youtube.com/watch?v=w7ay7QXmo_o&t=5998s&ab_channel=MollyRocket)
 - [Day 006 game pad input ](https://www.youtube.com/watch?v=J3y1x54vyIQ&ab_channel=MollyRocket)
