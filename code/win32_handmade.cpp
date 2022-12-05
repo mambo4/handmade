@@ -3,8 +3,9 @@
 #pragma comment(lib, "gdi32.lib")
 
 #include <Windows.h>
-#include <stdint.h> //for access to unit8_t type
-#include <xinput.h> //for xbox controller
+#include <stdint.h> // for access to unit8_t type
+#include <xinput.h> // for xbox controller
+#include <dsound.h> // Direct sound
 
 // these #defines reuse 'static' with more clarfied intent
 #define internal static
@@ -22,6 +23,8 @@ typedef int8_t int8;
 typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
+
+typedef int32 bool32;
 
 struct win32_offscreen_buffer
 {
@@ -45,30 +48,32 @@ loading XInputGetState  & XInputSetState directly from
 https://youtu.be/J3y1x54vyIQ?t=1255
 
 l33t pointer to a function defined elsewhwere macro crap I don't quite get
-
 https://youtu.be/J3y1x54vyIQ?t=1745
 
 */
 
-#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState) //macro creates fns 'name' with the signature args
-typedef X_INPUT_GET_STATE(x_input_get_state);// create a 'type' x_input_get_state(DWORD dwUserIndex, XINPUT_STATE *pState)
-X_INPUT_GET_STATE(XInputGetStateStub)// create XInputGetStateStub(DWORD dwUserIndex, XINPUT_STATE *pState){ return(0); }
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState) // macro creates fns 'name' with the signature args
+typedef X_INPUT_GET_STATE(x_input_get_state);											   // create a 'type' x_input_get_state(DWORD dwUserIndex, XINPUT_STATE *pState)
+X_INPUT_GET_STATE(XInputGetStateStub)													   // create XInputGetStateStub(DWORD dwUserIndex, XINPUT_STATE *pState){ return(0); }
 {
-	return (0);
+	return (ERROR_DEVICE_NOT_CONNECTED);
 }
-global_variable x_input_get_state *XInputGetState_ = XInputGetStateStub;//define a pointer to XInputGetStateStub
-#define XInputGetState XInputGetState_ //call the pointer 'XInputGetState'
+global_variable x_input_get_state *XInputGetState_ = XInputGetStateStub; // define a pointer to XInputGetStateStub
+#define XInputGetState XInputGetState_									 // call the pointer 'XInputGetState'
 
 #define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration)
 typedef X_INPUT_SET_STATE(x_input_set_state);
 
 X_INPUT_SET_STATE(XInputSetStateStub)
 {
-	return (0);
+	return (ERROR_DEVICE_NOT_CONNECTED);
 }
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
+/* L33T pointer to a function for directsound*/
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuideDecice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
 internal void Win32LoadXInput(void)
 {
@@ -78,10 +83,90 @@ internal void Win32LoadXInput(void)
 		XInputGetState = (x_input_get_state *)GetProcAddress(XInputLibrary, "XInputGetState");
 		XInputSetState = (x_input_set_state *)GetProcAddress(XInputLibrary, "XInputSetState");
 	}
+	else
+	{
+		// todo: diagnostic
+	}
 }
 
 // end l33t crap
 
+internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
+{
+	// Load the library
+	HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
+
+	if (DSoundLibrary)
+	{
+		// get a DirectSound object
+		direct_sound_create *DirectSoundCreate = (direct_sound_create *)GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+
+		LPDIRECTSOUND DirectSound;
+		if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &DirectSound, 0)))
+		{
+			WAVEFORMATEX WaveFormat = {};
+			WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+			WaveFormat.nChannels = 2;
+			WaveFormat.nSamplesPerSec = SamplesPerSecond;
+			WaveFormat.wBitsPerSample = 16;
+			WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+			WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+			WaveFormat.cbSize = 0;
+
+			if (SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
+			{
+				DSBUFFERDESC BufferDescription = {};
+				BufferDescription.dwSize = sizeof(BufferDescription);
+				BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+				// "Create" a primary buffer
+				// todo : DSBCAPS_GLOBALFOCUS?
+				LPDIRECTSOUNDBUFFER PrimaryBuffer;
+				if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0)))
+				{
+					HRESULT Error =PrimaryBuffer->SetFormat(&WaveFormat);
+					if (SUCCEEDED(Error))
+					{
+						// we have finally set the format
+						OutputDebugStringA("Primary buffer fromat was set.\n");
+					}
+					else
+					{
+						// todo: diagnostic PrimaryBuffer->SetFormat
+					}
+				}
+				else
+				{
+					// todo: diagnostic DirectSound->CreateSoundBuffer
+				}
+			}
+			else
+			{
+				// todo: diagnostic DirectSound -> SetCooperativeLevel
+			}
+
+			// "Create" a secondary  buffer
+
+			DSBUFFERDESC BufferDescription = {};
+			BufferDescription.dwSize = sizeof(BufferDescription);
+			BufferDescription.dwFlags = 0;
+			BufferDescription.dwBufferBytes = BufferSize;
+			BufferDescription.lpwfxFormat = &WaveFormat;
+			LPDIRECTSOUNDBUFFER SecondaryBuffer;
+
+			HRESULT Error= DirectSound->CreateSoundBuffer(&BufferDescription, &SecondaryBuffer, 0);
+			if (SUCCEEDED(Error))
+			{
+				// Start it playing
+				OutputDebugStringA("Secondary buffer created.\n");
+			}
+		}
+		else
+		{
+			// todo: diagnostic DirectSoundCreate
+		}
+	}
+}
 
 win32_window_dimension Win32GetWindowDimension(HWND Window)
 {
@@ -107,12 +192,11 @@ internal void RenderWeirdGradient(win32_offscreen_buffer *Buffer, int XOffset, i
 		uint32 *Pixel = (uint32 *)Row; // pointer to first RGBA 32bit pixel of Row: 0xAARRGGBB
 		for (int X = 0; X < Buffer->Width; ++X)
 		{
-			uint8 A = 0x00;												// Alpha
-			uint8 B = (uint8)(X + XOffset);								// Blue
-			uint8 G = (uint8)(Y + YOffset);								// Green
-			uint8 R = (uint8)(RedOffset);								// red
+			uint8 A = 0x00;					// Alpha
+			uint8 B = (uint8)(X + XOffset); // Blue
+			uint8 G = (uint8)(Y + YOffset); // Green
+			uint8 R = (uint8)(RedOffset);	// red
 
-			
 			uint32 BGRA = (uint32)((B) | (G << 8) | (R << 16) | (A << 24)); // Comine 8 bit components by bitwise shift and bitwise OR
 			*Pixel = BGRA;
 			++Pixel;
@@ -193,7 +277,7 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
 	Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
 	int BitmapMemorySize = (Buffer->Width * Buffer->Height) * BytesPerPixel;
-	Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+	Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 
 	Buffer->Pitch = Width * BytesPerPixel; // Pitch is the difference between rows of pixels in Bytes
 }
@@ -299,6 +383,13 @@ LRESULT CALLBACK Win32MainWindowCallback(
 			{
 			}
 		}
+
+		typedef int32 bool32;
+		bool32 AltKeyWasDown = ((LParam & (1 << 29)) != 0);
+		if ((VKCode == VK_F4) && AltKeyWasDown)
+		{
+			GlobalRunning = false;
+		}
 	}
 	break;
 
@@ -365,7 +456,11 @@ int CALLBACK WinMain(
 			int XOffset = 0;
 			int YOffset = 0;
 			int RedOffset = 0;
+
+			Win32InitDSound(Window,48000,4800*sizeof(int16)*2);
+
 			GlobalRunning = true;
+
 			/*******************************************************
 			 *  GAME LOOP
 			 ********************************************************/
@@ -390,15 +485,15 @@ int CALLBACK WinMain(
 				DWORD dwResult;
 				for (DWORD i = 0; i < XUSER_MAX_COUNT; i++)
 				{
-					XINPUT_STATE state;
-					ZeroMemory(&state, sizeof(XINPUT_STATE));
+					XINPUT_STATE ControllerState;
+					ZeroMemory(&ControllerState, sizeof(XINPUT_STATE));
 
 					// Simply get the state of the controller from XInput.
-					dwResult = XInputGetState(i, &state);
+					dwResult = XInputGetState(i, &ControllerState);
 					if (dwResult == ERROR_SUCCESS)
 					{
 						// Controller is connected
-						XINPUT_GAMEPAD *Pad = &state.Gamepad;
+						XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
 
 						bool Up = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
 						bool Down = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
@@ -420,15 +515,16 @@ int CALLBACK WinMain(
 						 *  GAME LOOP :simulate/update
 						 ********************************************************/
 
-						XOffset-=LStickX>>12;
-						YOffset+=LStickY>>12;
-						if(AButton)
+						XOffset -= LStickX >> 12;
+						YOffset += LStickY >> 12;
+						if (AButton)
 						{
-							RedOffset=255;
-						}else{
-							RedOffset=0;
+							RedOffset = 255;
 						}
-						
+						else
+						{
+							RedOffset = 0;
+						}
 					}
 					else
 					{
@@ -448,7 +544,7 @@ int CALLBACK WinMain(
 				*/
 
 				// RenderGrid(GlobalBackBuffer);
-				RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset,RedOffset);
+				RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
 
 				HDC DeviceContext = GetDC(Window);
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);

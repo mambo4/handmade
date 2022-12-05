@@ -2,8 +2,8 @@
 - following handmade hero
 - to learn more real programming
 
-# current video spot
-https://youtu.be/J3y1x54vyIQ?t=3634
+# current video spot -start direct sound
+https://youtu.be/qGC3xiliJW8?t=1443
 
 # video links
 - [Day 005 windows Graphics recap ](https://www.youtube.com/watch?v=w7ay7QXmo_o&t=5998s&ab_channel=MollyRocket)
