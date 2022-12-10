@@ -1,11 +1,9 @@
-//
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
 
 #include <Windows.h>
 #include <stdint.h> // for access to unit8_t type
 #include <xinput.h> // for xbox controller
-#include <dsound.h> // Direct sound
 
 // these #defines reuse 'static' with more clarfied intent
 #define internal static
@@ -46,10 +44,8 @@ struct win32_window_dimension
 loading XInputGetState  & XInputSetState directly from
 "C:\Program Files (x86)\Windows Kits\10\Include\10.0.17763.0\um\Xinput.h"
 https://youtu.be/J3y1x54vyIQ?t=1255
-
 l33t pointer to a function defined elsewhwere macro crap I don't quite get
 https://youtu.be/J3y1x54vyIQ?t=1745
-
 */
 
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState) // macro creates fns 'name' with the signature args
@@ -72,8 +68,6 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
 /* L33T pointer to a function for directsound*/
-#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuideDecice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
-typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
 internal void Win32LoadXInput(void)
 {
@@ -90,83 +84,6 @@ internal void Win32LoadXInput(void)
 }
 
 // end l33t crap
-
-internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
-{
-	// Load the library
-	HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
-
-	if (DSoundLibrary)
-	{
-		// get a DirectSound object
-		direct_sound_create *DirectSoundCreate = (direct_sound_create *)GetProcAddress(DSoundLibrary, "DirectSoundCreate");
-
-		LPDIRECTSOUND DirectSound;
-		if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &DirectSound, 0)))
-		{
-			WAVEFORMATEX WaveFormat = {};
-			WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
-			WaveFormat.nChannels = 2;
-			WaveFormat.nSamplesPerSec = SamplesPerSecond;
-			WaveFormat.wBitsPerSample = 16;
-			WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
-			WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
-			WaveFormat.cbSize = 0;
-
-			if (SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
-			{
-				DSBUFFERDESC BufferDescription = {};
-				BufferDescription.dwSize = sizeof(BufferDescription);
-				BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
-
-				// "Create" a primary buffer
-				// todo : DSBCAPS_GLOBALFOCUS?
-				LPDIRECTSOUNDBUFFER PrimaryBuffer;
-				if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0)))
-				{
-					HRESULT Error =PrimaryBuffer->SetFormat(&WaveFormat);
-					if (SUCCEEDED(Error))
-					{
-						// we have finally set the format
-						OutputDebugStringA("Primary buffer fromat was set.\n");
-					}
-					else
-					{
-						// todo: diagnostic PrimaryBuffer->SetFormat
-					}
-				}
-				else
-				{
-					// todo: diagnostic DirectSound->CreateSoundBuffer
-				}
-			}
-			else
-			{
-				// todo: diagnostic DirectSound -> SetCooperativeLevel
-			}
-
-			// "Create" a secondary  buffer
-
-			DSBUFFERDESC BufferDescription = {};
-			BufferDescription.dwSize = sizeof(BufferDescription);
-			BufferDescription.dwFlags = 0;
-			BufferDescription.dwBufferBytes = BufferSize;
-			BufferDescription.lpwfxFormat = &WaveFormat;
-			LPDIRECTSOUNDBUFFER SecondaryBuffer;
-
-			HRESULT Error= DirectSound->CreateSoundBuffer(&BufferDescription, &SecondaryBuffer, 0);
-			if (SUCCEEDED(Error))
-			{
-				// Start it playing
-				OutputDebugStringA("Secondary buffer created.\n");
-			}
-		}
-		else
-		{
-			// todo: diagnostic DirectSoundCreate
-		}
-	}
-}
 
 win32_window_dimension Win32GetWindowDimension(HWND Window)
 {
@@ -456,8 +373,6 @@ int CALLBACK WinMain(
 			int XOffset = 0;
 			int YOffset = 0;
 			int RedOffset = 0;
-
-			Win32InitDSound(Window,48000,4800*sizeof(int16)*2);
 
 			GlobalRunning = true;
 
