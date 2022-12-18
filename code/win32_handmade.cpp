@@ -1,9 +1,14 @@
+//
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "xaudio2.lib")
 
 #include <Windows.h>
-#include <stdint.h> // for access to unit8_t type
-#include <xinput.h> // for xbox controller
+#include <stdint.h>		// for access to unit8_t type
+#include <xinput.h>		// for xbox controller
+#include <xaudio2.h>	// for audio
+#include <combaseapi.h> // to intilize COM for Xaudio2
 
 // these #defines reuse 'static' with more clarfied intent
 #define internal static
@@ -44,8 +49,10 @@ struct win32_window_dimension
 loading XInputGetState  & XInputSetState directly from
 "C:\Program Files (x86)\Windows Kits\10\Include\10.0.17763.0\um\Xinput.h"
 https://youtu.be/J3y1x54vyIQ?t=1255
+
 l33t pointer to a function defined elsewhwere macro crap I don't quite get
 https://youtu.be/J3y1x54vyIQ?t=1745
+
 */
 
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState) // macro creates fns 'name' with the signature args
@@ -67,7 +74,19 @@ X_INPUT_SET_STATE(XInputSetStateStub)
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
-/* L33T pointer to a function for directsound*/
+// globals
+global_variable bool GlobalRunning;
+global_variable win32_offscreen_buffer GlobalBackBuffer;
+global_variable IXAudio2 *pXAudio2 = nullptr;
+global_variable IXAudio2MasteringVoice *pMasterVoice = nullptr;
+global_variable HRESULT hr;
+global_variable  TCHAR *boopFile = TEXT("W:/handmade/assets/audio/robot_boop.wav");
+global_variable  TCHAR *bipFile = TEXT("W:/handmade/assets/audio/robot_bip.wav");
+
+// consts
+const float PI = 3.14159265359;
+const uint32 STARTCOLOR = 0x00000000;
+// https://pages.mtu.edu/~suits/notefreqs.html
 
 internal void Win32LoadXInput(void)
 {
@@ -83,8 +102,6 @@ internal void Win32LoadXInput(void)
 	}
 }
 
-// end l33t crap
-
 win32_window_dimension Win32GetWindowDimension(HWND Window)
 {
 
@@ -95,11 +112,6 @@ win32_window_dimension Win32GetWindowDimension(HWND Window)
 	Result.Height = ClientRect.bottom - ClientRect.top;
 	return (Result);
 }
-
-global_variable bool GlobalRunning;
-global_variable win32_offscreen_buffer GlobalBackBuffer;
-const float PI = 3.14159265359;
-const uint32 STARTCOLOR = 0x00000000;
 
 internal void RenderWeirdGradient(win32_offscreen_buffer *Buffer, int XOffset, int YOffset, int RedOffset)
 {
@@ -121,7 +133,8 @@ internal void RenderWeirdGradient(win32_offscreen_buffer *Buffer, int XOffset, i
 		Row += Buffer->Pitch;
 	}
 }
-internal void RenderGrid(win32_offscreen_buffer *Buffer)
+
+internal void RenderGrid(win32_offscreen_buffer *Buffer, int XOffset, int YOffset, int RedOffset)
 {
 	const uint32 BLACK = 0x00000000;
 	const uint32 DARK_GREY = 0xff111111;
@@ -142,8 +155,8 @@ internal void RenderGrid(win32_offscreen_buffer *Buffer)
 		for (int X = 0; X < Buffer->Width; ++X)
 		{
 
-			const int X_COORD = X - X_ORIGIN;
-			const int Y_COORD = Y - Y_ORIGIN;
+			const int X_COORD = X - X_ORIGIN + XOffset;
+			const int Y_COORD = Y - Y_ORIGIN + YOffset;
 
 			uint32 color = BLACK;
 
@@ -160,7 +173,7 @@ internal void RenderGrid(win32_offscreen_buffer *Buffer)
 					color = MED_GREY;
 				}
 
-				if (Y == Y_ORIGIN || X == X_ORIGIN)
+				if (Y + YOffset == Y_ORIGIN || X + XOffset == X_ORIGIN)
 				{
 					color = LIGHT_GREY;
 				}
@@ -194,7 +207,7 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
 	Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
 	int BitmapMemorySize = (Buffer->Width * Buffer->Height) * BytesPerPixel;
-	Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+	Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	Buffer->Pitch = Width * BytesPerPixel; // Pitch is the difference between rows of pixels in Bytes
 }
@@ -209,6 +222,206 @@ internal void Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC Dev
 				  &Buffer->Info,
 				  DIB_RGB_COLORS, SRCCOPY);
 }
+
+internal void Win32RumbleController(uint16 speed)
+{
+	// speed is normally 1000
+	XINPUT_VIBRATION Vibration;
+	Vibration.wLeftMotorSpeed = speed;
+	Vibration.wRightMotorSpeed = speed;
+	XInputSetState(0, &Vibration);
+}
+
+/***************************************************
+XAudio2 stuff
+***************************************************/
+internal void Win32InitXaudio2()
+{
+	HRESULT hr;
+	hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	if (SUCCEEDED(hr))
+	{
+		OutputDebugStringA("CoInitializeEx() SUCCEEDED.");
+
+		if (SUCCEEDED(hr = XAudio2Create(&pXAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR)))
+		{
+			OutputDebugStringA("XAudio2Create() SUCCEEDED.");
+			if (SUCCEEDED(hr = pXAudio2->CreateMasteringVoice(&pMasterVoice)))
+			{
+				OutputDebugStringA("CreateMasteringVoice() SUCCEEDED.");
+			}
+			else
+			{
+				OutputDebugStringA("CreateMasteringVoice() SUCCEFAILED");
+			}
+		}
+		else
+		{
+			OutputDebugStringA("XAudio2Create() FAILED.");
+		}
+	}
+	else
+	{
+		OutputDebugStringA("CoInitializeEx() FAILED");
+	}
+}
+
+#ifdef _XBOX // Big-Endian
+#define fourccRIFF 'RIFF'
+#define fourccDATA 'data'
+#define fourccFMT 'fmt '
+#define fourccWAVE 'WAVE'
+#define fourccXWMA 'XWMA'
+#define fourccDPDS 'dpds'
+#endif
+
+#ifndef _XBOX // Little-Endian
+#define fourccRIFF 'FFIR'
+#define fourccDATA 'atad'
+#define fourccFMT ' tmf'
+#define fourccWAVE 'EVAW'
+#define fourccXWMA 'AMWX'
+#define fourccDPDS 'sdpd'
+#endif
+
+HRESULT FindChunk(HANDLE hFile, DWORD fourcc, DWORD &dwChunkSize, DWORD &dwChunkDataPosition)
+{
+    HRESULT hr = S_OK;
+    if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, 0, NULL, FILE_BEGIN))
+        return HRESULT_FROM_WIN32(GetLastError());
+    DWORD dwChunkType;
+    DWORD dwChunkDataSize;
+    DWORD dwRIFFDataSize = 0;
+    DWORD dwFileType;
+    DWORD bytesRead = 0;
+    DWORD dwOffset = 0;
+    while (hr == S_OK)
+    {
+        DWORD dwRead;
+        if (0 == ReadFile(hFile, &dwChunkType, sizeof(DWORD), &dwRead, NULL))
+            hr = HRESULT_FROM_WIN32(GetLastError());
+        if (0 == ReadFile(hFile, &dwChunkDataSize, sizeof(DWORD), &dwRead, NULL))
+            hr = HRESULT_FROM_WIN32(GetLastError());
+
+        switch (dwChunkType)
+        {
+        case fourccRIFF:
+            dwRIFFDataSize = dwChunkDataSize;
+            dwChunkDataSize = 4;
+            if (0 == ReadFile(hFile, &dwFileType, sizeof(DWORD), &dwRead, NULL))
+                hr = HRESULT_FROM_WIN32(GetLastError());
+            break;
+        default:
+            if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, dwChunkDataSize, NULL, FILE_CURRENT))
+                return HRESULT_FROM_WIN32(GetLastError());
+        }
+        dwOffset += sizeof(DWORD) * 2;
+        if (dwChunkType == fourcc)
+        {
+            dwChunkSize = dwChunkDataSize;
+            dwChunkDataPosition = dwOffset;
+            return S_OK;
+        }
+        dwOffset += dwChunkDataSize;
+        if (bytesRead >= dwRIFFDataSize)
+            return S_FALSE;
+    }
+    return S_OK;
+}
+
+HRESULT ReadChunkData(HANDLE hFile, void *buffer, DWORD buffersize, DWORD bufferoffset)
+{
+    HRESULT hr = S_OK;
+    if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, bufferoffset, NULL, FILE_BEGIN))
+    {
+        OutputDebugStringA("INVALID_SET_FILE_POINTER");
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+    DWORD dwRead;
+    if (0 == ReadFile(hFile, buffer, buffersize, &dwRead, NULL))
+    {
+        OutputDebugStringA("ReadFile");
+        hr = HRESULT_FROM_WIN32(GetLastError());
+    }
+    return hr;
+}
+
+HRESULT playAudio(
+    TCHAR *strFileName,
+    IXAudio2 *pXAudio2, 
+    IXAudio2MasteringVoice *pMasterVoice,
+    WAVEFORMATEXTENSIBLE wfx,
+    XAUDIO2_BUFFER buffer,
+    HRESULT hr
+    )
+{
+
+    HANDLE hFile = CreateFile(
+        strFileName,
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        NULL,
+        OPEN_EXISTING,
+        0,
+        NULL);
+
+    if (INVALID_HANDLE_VALUE == hFile)
+    {
+		OutputDebugStringA("playAudio() INVALID_HANDLE_VALUE");
+    }
+
+    if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, 0, NULL, FILE_BEGIN))
+    {
+        OutputDebugStringA("playAudio() INVALID_SET_FILE_POINTER");
+    }
+
+    DWORD dwChunkSize;
+    DWORD dwChunkPosition;
+    // check the file type, should be fourccWAVE or 'XWMA'
+    FindChunk(hFile, fourccRIFF, dwChunkSize, dwChunkPosition);
+    DWORD filetype;
+    ReadChunkData(hFile, &filetype, sizeof(DWORD), dwChunkPosition);
+    if (filetype != fourccWAVE)
+    {
+		OutputDebugStringA("filetype != fourccWAVE\n");
+        return S_FALSE;
+    }
+
+    FindChunk(hFile, fourccFMT, dwChunkSize, dwChunkPosition);
+    ReadChunkData(hFile, &wfx, dwChunkSize, dwChunkPosition);
+
+    FindChunk(hFile, fourccDATA, dwChunkSize, dwChunkPosition);
+    BYTE *pDataBuffer = new BYTE[dwChunkSize];
+    ReadChunkData(hFile, pDataBuffer, dwChunkSize, dwChunkPosition);
+
+    buffer.AudioBytes = dwChunkSize;      // size of the audio buffer in bytes
+    buffer.pAudioData = pDataBuffer;      // buffer containing audio data
+    buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer
+
+    IXAudio2SourceVoice *pSourceVoice;
+    if (FAILED(hr = pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX *)&wfx)))
+    {
+        OutputDebugStringA("FAILED pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX*)&wfx)");
+        // cout << hr;
+    }
+
+    if (FAILED(hr = pSourceVoice->SubmitSourceBuffer(&buffer)))
+    {
+        OutputDebugStringA("FAILED pSourceVoice->SubmitSourceBuffer(&buffer)");
+        // cout << hr;
+    }
+
+    if (FAILED(hr = pSourceVoice->Start(0)))
+    {
+        OutputDebugStringA("FAILED pSourceVoice->Start(0)");
+        // cout << hr;
+    }
+}
+
+
+/***************************************************
+Main stuff
+***************************************************/
 
 LRESULT CALLBACK Win32MainWindowCallback(
 	HWND Window,   // handle to a window
@@ -370,10 +583,23 @@ int CALLBACK WinMain(
 			0);
 		if (Window)
 		{
+			// since we specified CS_OWNDC, we can just get one device context and use it forever because we are not sharing it.
+			HDC DeviceContext = GetDC(Window);
+
+			// colors
 			int XOffset = 0;
 			int YOffset = 0;
 			int RedOffset = 0;
+			// hptics
+			uint16 VibrationSpeed = 0;
 
+			// sound
+			bool SoundOn = false;
+			Win32InitXaudio2();
+			WAVEFORMATEXTENSIBLE wfx = {0};
+			XAUDIO2_BUFFER xaudioBuffer = {0};
+
+			// GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 			GlobalRunning = true;
 
 			/*******************************************************
@@ -429,9 +655,9 @@ int CALLBACK WinMain(
 						/*******************************************************
 						 *  GAME LOOP :simulate/update
 						 ********************************************************/
-
 						XOffset -= LStickX >> 12;
 						YOffset += LStickY >> 12;
+
 						if (AButton)
 						{
 							RedOffset = 255;
@@ -439,6 +665,34 @@ int CALLBACK WinMain(
 						else
 						{
 							RedOffset = 0;
+						}
+
+						if (BButton)
+						{
+							VibrationSpeed = 1000;
+						}
+						else
+						{
+							VibrationSpeed = 0;
+						}
+
+						if (XButton || YButton)
+						{
+							SoundOn = true;
+						}
+						else
+						{
+							SoundOn = false;
+						}
+
+						if (XButton)
+						{
+							playAudio(boopFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
+						}
+
+						if (YButton)
+						{
+							playAudio(bipFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
 						}
 					}
 					else
@@ -449,31 +703,19 @@ int CALLBACK WinMain(
 				/********************************************************
 				 *  GAME LOOP : Render
 				 ********************************************************/
-
-				/*
-				// rumble test
-				XINPUT_VIBRATION Vibration;
-				Vibration.wLeftMotorSpeed=1000;
-				Vibration.wRightMotorSpeed=1000;
-				XInputSetState(0,&Vibration);
-				*/
-
-				// RenderGrid(GlobalBackBuffer);
-				RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
-
 				HDC DeviceContext = GetDC(Window);
+				Win32RumbleController(VibrationSpeed);
+				// RenderGrid(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
+				RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
+
 				Win32DisplayBufferInWindow(&GlobalBackBuffer, DeviceContext, Dimension.Width, Dimension.Height);
 				ReleaseDC(Window, DeviceContext);
-
-				// ++XOffset;
-				// ++YOffset;
-				// ++RedOffset;
 			}
 		}
 		else
 		{
-			// todo: logging
+			// todo: logging CreateWindowExA()
 		}
 	}
 	else
