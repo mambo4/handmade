@@ -566,6 +566,12 @@ int CALLBACK WinMain(
 	// WindowClass.hIcon = ; // icon for window
 	WindowClass.lpszClassName = "handmadeHeroWindowClass";
 
+	//perf
+	LARGE_INTEGER PerformanceFrequencyResult;
+	QueryPerformanceFrequency(&PerformanceFrequencyResult);
+	int64 PerCountFrequency =PerformanceFrequencyResult.QuadPart;
+	
+//window loop
 	if (RegisterClassA(&WindowClass))
 	{
 		HWND Window = CreateWindowExA(
@@ -590,7 +596,8 @@ int CALLBACK WinMain(
 			int XOffset = 0;
 			int YOffset = 0;
 			int RedOffset = 0;
-			// hptics
+
+			// haptics
 			uint16 VibrationSpeed = 0;
 
 			// sound
@@ -599,7 +606,11 @@ int CALLBACK WinMain(
 			WAVEFORMATEXTENSIBLE wfx = {0};
 			XAUDIO2_BUFFER xaudioBuffer = {0};
 
-			// GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
+			//perf
+			LARGE_INTEGER LastCounter;
+			QueryPerformanceCounter(&LastCounter);
+			int64 LastCycleCount = __rdtsc();  
+
 			GlobalRunning = true;
 
 			/*******************************************************
@@ -708,9 +719,28 @@ int CALLBACK WinMain(
 				// RenderGrid(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
 				RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-
 				Win32DisplayBufferInWindow(&GlobalBackBuffer, DeviceContext, Dimension.Width, Dimension.Height);
+
+				//perf - before or after releaseDC?
+				int64 EndCycleCount=__rdtsc();
+				LARGE_INTEGER EndCounter;
+				QueryPerformanceCounter(&EndCounter);
+				int64 CyclesElapsed=EndCycleCount-LastCycleCount;
+				int64 CounterElapsed=EndCounter.QuadPart-LastCounter.QuadPart;
+				int32 MSPerFrame=(int32)((1000*CounterElapsed)/PerCountFrequency);
+				int32 FPS=(PerCountFrequency/CounterElapsed);
+				int32 MCPF= (int32)(CyclesElapsed/ (1000*1000));
+				//display result
+				char Buffer[200];
+				wsprintfA(Buffer, "mspf: %d\t fps: %d;\t mcpf: %d\n",MSPerFrame,FPS, MCPF); 
+				OutputDebugStringA(Buffer);
+
+				LastCounter=EndCounter;
+				LastCycleCount=EndCycleCount;
+
 				ReleaseDC(Window, DeviceContext);
+
+
 			}
 		}
 		else
