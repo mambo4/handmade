@@ -6,6 +6,7 @@
             "label": "C/C++: cl.exe build active file",
             "command": "cl.exe",
             "args": [
+                "-DHAMDMADE_WIN32=1",
                 "/Zi",
                 "/EHsc",
                 "/nologo",
