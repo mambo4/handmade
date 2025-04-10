@@ -1,39 +1,33 @@
-/*
-
-https://youtu.be/_4vnV2Eng7M?t=2225
-
-not a final platformlayer
-- saved game locations
-- handle to our own executable
-- asset loading path
-- threading (launch a thread)
-- raw input ( support for multiple keyboards)
-- Sleep/timeBeginBeriod
-- clipcursor) (multimponitor)
-- Fill Screen support
-- WM_SETCURSOR (cursor visibility)
-- QueryCancelAuroplay
-- WMP_ACTIVATEAPP( when we are not active)
-- BlitSpeed improvements
-- Hardware Accelleration(GL /Direct3D)
-- GetKeyboardLayout
-- ...
-
-*/
-
-
+//
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "xaudio2.lib")
 
-#include "handmade.cpp"
-
-#include <Windows.h>	// for win 32 ops
+#include <Windows.h>
+#include <stdint.h>		// for access to unit8_t type
 #include <xinput.h>		// for xbox controller
 #include <xaudio2.h>	// for audio
 #include <combaseapi.h> // to intilize COM for Xaudio2
 
+// these #defines reuse 'static' with more clarfied intent
+#define internal static
+#define local_persist static
+#define global_variable static
+
+// these typedefs redefine types from stdint.h
+// for easier typing than 'unsigned char' etc
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
+
+typedef int32 bool32;
 
 struct win32_offscreen_buffer
 {
@@ -86,21 +80,13 @@ global_variable win32_offscreen_buffer GlobalBackBuffer;
 global_variable IXAudio2 *pXAudio2 = nullptr;
 global_variable IXAudio2MasteringVoice *pMasterVoice = nullptr;
 global_variable HRESULT hr;
-global_variable  TCHAR *soundFile = TEXT("");
 global_variable  TCHAR *boopFile = TEXT("W:/handmade/assets/audio/robot_boop.wav");
 global_variable  TCHAR *bipFile = TEXT("W:/handmade/assets/audio/robot_bip.wav");
 
-
-
-
-
-void *PlatformLoadFile(char *fileName)
-{
-	//implements win32 file loading
-    return(0);
-}
-
-
+// consts
+const float PI = 3.14159265359;
+const uint32 STARTCOLOR = 0x00000000;
+// https://pages.mtu.edu/~suits/notefreqs.html
 
 internal void Win32LoadXInput(void)
 {
@@ -127,26 +113,26 @@ win32_window_dimension Win32GetWindowDimension(HWND Window)
 	return (Result);
 }
 
-// internal void RenderWeirdGradient(win32_offscreen_buffer *Buffer, int XOffset, int YOffset, int RedOffset)
-// {
-// 	uint8 *Row = (uint8 *)Buffer->Memory; // cast the void pointer BitmapMemory to unsigned 8 bit int
-// 	for (int Y = 0; Y < Buffer->Height; ++Y)
-// 	{
-// 		uint32 *Pixel = (uint32 *)Row; // pointer to first RGBA 32bit pixel of Row: 0xAARRGGBB
-// 		for (int X = 0; X < Buffer->Width; ++X)
-// 		{
-// 			uint8 A = 0x00;					// Alpha
-// 			uint8 B = (uint8)(X + XOffset); // Blue
-// 			uint8 G = (uint8)(Y + YOffset); // Green
-// 			uint8 R = (uint8)(RedOffset);	// red
+internal void RenderWeirdGradient(win32_offscreen_buffer *Buffer, int XOffset, int YOffset, int RedOffset)
+{
+	uint8 *Row = (uint8 *)Buffer->Memory; // cast the void pointer BitmapMemory to unsigned 8 bit int
+	for (int Y = 0; Y < Buffer->Height; ++Y)
+	{
+		uint32 *Pixel = (uint32 *)Row; // pointer to first RGBA 32bit pixel of Row: 0xAARRGGBB
+		for (int X = 0; X < Buffer->Width; ++X)
+		{
+			uint8 A = 0x00;					// Alpha
+			uint8 B = (uint8)(X + XOffset); // Blue
+			uint8 G = (uint8)(Y + YOffset); // Green
+			uint8 R = (uint8)(RedOffset);	// red
 
-// 			uint32 BGRA = (uint32)((B) | (G << 8) | (R << 16) | (A << 24)); // Comine 8 bit components by bitwise shift and bitwise OR
-// 			*Pixel = BGRA;
-// 			++Pixel;
-// 		}
-// 		Row += Buffer->Pitch;
-// 	}
-// }
+			uint32 BGRA = (uint32)((B) | (G << 8) | (R << 16) | (A << 24)); // Comine 8 bit components by bitwise shift and bitwise OR
+			*Pixel = BGRA;
+			++Pixel;
+		}
+		Row += Buffer->Pitch;
+	}
+}
 
 internal void RenderGrid(win32_offscreen_buffer *Buffer, int XOffset, int YOffset, int RedOffset)
 {
@@ -562,8 +548,6 @@ LRESULT CALLBACK Win32MainWindowCallback(
 	return (Result);
 }
 
-
-
 int CALLBACK WinMain(
 	HINSTANCE Instance,
 	HINSTANCE PrevInstance,
@@ -710,17 +694,16 @@ int CALLBACK WinMain(
 						else
 						{
 							SoundOn = false;
-
 						}
 
 						if (XButton)
 						{
-							soundFile = boopFile;
+							playAudio(boopFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
 						}
 
 						if (YButton)
 						{
-							soundFile =bipFile;
+							playAudio(bipFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
 						}
 					}
 					else
@@ -733,41 +716,25 @@ int CALLBACK WinMain(
 				 ********************************************************/
 				HDC DeviceContext = GetDC(Window);
 				Win32RumbleController(VibrationSpeed);
-
-				game_offscreen_buffer Buffer ={};
-				Buffer.Memory=GlobalBackBuffer.Memory;
-				Buffer.Width=GlobalBackBuffer.Width;
-				Buffer.Height=GlobalBackBuffer.Height;
-				Buffer.Pitch=GlobalBackBuffer.Pitch;
-
-				GameUpdateAndRender(&Buffer,XOffset, YOffset, RedOffset);
-
 				// RenderGrid(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
-				//RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
-				if (SoundOn)
-				{
-					playAudio(soundFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
-				}
-
+				RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-				Win32DisplayBufferInWindow(&GlobalBackBuffer, DeviceContext, Dimension.Width, Dimension.Height);\
+				Win32DisplayBufferInWindow(&GlobalBackBuffer, DeviceContext, Dimension.Width, Dimension.Height);
+
 				//perf - before or after releaseDC?
 				int64 EndCycleCount=__rdtsc();
 				LARGE_INTEGER EndCounter;
 				QueryPerformanceCounter(&EndCounter);
-
-
-
 				int64 CyclesElapsed=EndCycleCount-LastCycleCount;
 				int64 CounterElapsed=EndCounter.QuadPart-LastCounter.QuadPart;
 				int32 MSPerFrame=(int32)((1000*CounterElapsed)/PerCountFrequency);
 				int32 FPS=(PerCountFrequency/CounterElapsed);
 				int32 MCPF= (int32)(CyclesElapsed/ (1000*1000));
-#if 0
+				//display result
 				char Buffer[200];
 				wsprintfA(Buffer, "mspf: %d\t fps: %d;\t mcpf: %d\n",MSPerFrame,FPS, MCPF); 
 				OutputDebugStringA(Buffer);
-#endif
+
 				LastCounter=EndCounter;
 				LastCycleCount=EndCycleCount;
 
