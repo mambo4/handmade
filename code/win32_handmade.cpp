@@ -80,8 +80,10 @@ global_variable win32_offscreen_buffer GlobalBackBuffer;
 global_variable IXAudio2 *pXAudio2 = nullptr;
 global_variable IXAudio2MasteringVoice *pMasterVoice = nullptr;
 global_variable HRESULT hr;
-global_variable  TCHAR *boopFile = TEXT("W:/handmade/assets/audio/robot_boop.wav");
-global_variable  TCHAR *bipFile = TEXT("W:/handmade/assets/audio/robot_bip.wav");
+
+//assets
+global_variable TCHAR *boopFile = TEXT("W:/handmade/handmade/assets/audio/bip.wav");
+global_variable TCHAR *bipFile = TEXT("W:/handmade/handmade/assets/audio/boop.wav");
 
 // consts
 const float PI = 3.14159265359;
@@ -252,7 +254,7 @@ internal void Win32InitXaudio2()
 			}
 			else
 			{
-				OutputDebugStringA("CreateMasteringVoice() SUCCEFAILED");
+				OutputDebugStringA("CreateMasteringVoice() FAILED");
 			}
 		}
 		else
@@ -334,8 +336,8 @@ HRESULT ReadChunkData(HANDLE hFile, void *buffer, DWORD buffersize, DWORD buffer
     HRESULT hr = S_OK;
     if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, bufferoffset, NULL, FILE_BEGIN))
     {
-        OutputDebugStringA("INVALID_SET_FILE_POINTER");
-        return HRESULT_FROM_WIN32(GetLastError());
+		OutputDebugStringA("ReadChunkData() INVALID_SET_FILE_POINTER\n");
+		return HRESULT_FROM_WIN32(GetLastError());
     }
     DWORD dwRead;
     if (0 == ReadFile(hFile, buffer, buffersize, &dwRead, NULL))
@@ -367,16 +369,17 @@ HRESULT playAudio(
 
     if (INVALID_HANDLE_VALUE == hFile)
     {
-		OutputDebugStringA("playAudio() INVALID_HANDLE_VALUE");
+		OutputDebugStringA("playAudio() INVALID_HANDLE_VALUE\n");
     }
 
     if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, 0, NULL, FILE_BEGIN))
     {
-        OutputDebugStringA("playAudio() INVALID_SET_FILE_POINTER");
+        OutputDebugStringA("playAudio() INVALID_SET_FILE_POINTER\n");
     }
 
     DWORD dwChunkSize;
     DWORD dwChunkPosition;
+
     // check the file type, should be fourccWAVE or 'XWMA'
     FindChunk(hFile, fourccRIFF, dwChunkSize, dwChunkPosition);
     DWORD filetype;
@@ -596,7 +599,7 @@ int CALLBACK WinMain(
 			int XOffset = 0;
 			int YOffset = 0;
 			int RedOffset = 0;
-
+			int BlueOffset = 0;
 			// haptics
 			uint16 VibrationSpeed = 0;
 
@@ -668,23 +671,17 @@ int CALLBACK WinMain(
 						 ********************************************************/
 						XOffset -= LStickX >> 12;
 						YOffset += LStickY >> 12;
+						RedOffset = 0;
 
 						if (AButton)
 						{
 							RedOffset = 255;
 						}
-						else
-						{
-							RedOffset = 0;
-						}
 
 						if (BButton)
 						{
-							VibrationSpeed = 1000;
-						}
-						else
-						{
-							VibrationSpeed = 0;
+							RedOffset = 128;
+							// VibrationSpeed = 1000;
 						}
 
 						if (XButton || YButton)
