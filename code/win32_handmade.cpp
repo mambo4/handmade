@@ -237,6 +237,7 @@ internal void Win32RumbleController(uint16 speed)
 /***************************************************
 XAudio2 stuff
 ***************************************************/
+
 internal void Win32InitXaudio2()
 {
 	HRESULT hr;
@@ -288,30 +289,35 @@ internal void Win32InitXaudio2()
 
 HRESULT FindChunk(HANDLE hFile, DWORD fourcc, DWORD &dwChunkSize, DWORD &dwChunkDataPosition)
 {
-    HRESULT hr = S_OK;
-    if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, 0, NULL, FILE_BEGIN))
+    HRESULT hResult = S_OK;
+    if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, 0, NULL, FILE_BEGIN)) {
         return HRESULT_FROM_WIN32(GetLastError());
+	}
     DWORD dwChunkType;
     DWORD dwChunkDataSize;
     DWORD dwRIFFDataSize = 0;
     DWORD dwFileType;
     DWORD bytesRead = 0;
     DWORD dwOffset = 0;
-    while (hr == S_OK)
+
+    while (hResult == S_OK)
     {
         DWORD dwRead;
-        if (0 == ReadFile(hFile, &dwChunkType, sizeof(DWORD), &dwRead, NULL))
-            hr = HRESULT_FROM_WIN32(GetLastError());
-        if (0 == ReadFile(hFile, &dwChunkDataSize, sizeof(DWORD), &dwRead, NULL))
-            hr = HRESULT_FROM_WIN32(GetLastError());
+        if (0 == ReadFile(hFile, &dwChunkType, sizeof(DWORD), &dwRead, NULL)){
+            hResult = HRESULT_FROM_WIN32(GetLastError());
+		}
 
-        switch (dwChunkType)
+        if (0 == ReadFile(hFile, &dwChunkDataSize, sizeof(DWORD), &dwRead, NULL)){
+            hResult = HRESULT_FROM_WIN32(GetLastError());
+		}
+
+		switch (dwChunkType)
         {
         case fourccRIFF:
             dwRIFFDataSize = dwChunkDataSize;
             dwChunkDataSize = 4;
             if (0 == ReadFile(hFile, &dwFileType, sizeof(DWORD), &dwRead, NULL))
-                hr = HRESULT_FROM_WIN32(GetLastError());
+                hResult = HRESULT_FROM_WIN32(GetLastError());
             break;
         default:
             if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, dwChunkDataSize, NULL, FILE_CURRENT))
@@ -333,7 +339,7 @@ HRESULT FindChunk(HANDLE hFile, DWORD fourcc, DWORD &dwChunkSize, DWORD &dwChunk
 
 HRESULT ReadChunkData(HANDLE hFile, void *buffer, DWORD buffersize, DWORD bufferoffset)
 {
-    HRESULT hr = S_OK;
+    HRESULT hResult = S_OK;
     if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, bufferoffset, NULL, FILE_BEGIN))
     {
 		OutputDebugStringA("ReadChunkData() INVALID_SET_FILE_POINTER\n");
@@ -343,9 +349,9 @@ HRESULT ReadChunkData(HANDLE hFile, void *buffer, DWORD buffersize, DWORD buffer
     if (0 == ReadFile(hFile, buffer, buffersize, &dwRead, NULL))
     {
         OutputDebugStringA("ReadFile");
-        hr = HRESULT_FROM_WIN32(GetLastError());
+        hResult = HRESULT_FROM_WIN32(GetLastError());
     }
-    return hr;
+    return hResult;
 }
 
 HRESULT playAudio(
@@ -354,10 +360,10 @@ HRESULT playAudio(
     IXAudio2MasteringVoice *pMasterVoice,
     WAVEFORMATEXTENSIBLE wfx,
     XAUDIO2_BUFFER buffer,
-    HRESULT hr
+    HRESULT hResult
     )
 {
-
+	hResult=S_OK;
     HANDLE hFile = CreateFile(
         strFileName,
         GENERIC_READ,
@@ -369,25 +375,27 @@ HRESULT playAudio(
 
     if (INVALID_HANDLE_VALUE == hFile)
     {
-		OutputDebugStringA("playAudio() INVALID_HANDLE_VALUE\n");
-    }
+		OutputDebugStringA("playAudio(): INVALID_HANDLE_VALUE\n");
+		return S_FALSE;
+	}
 
     if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, 0, NULL, FILE_BEGIN))
     {
-        OutputDebugStringA("playAudio() INVALID_SET_FILE_POINTER\n");
-    }
+        OutputDebugStringA("playAudio(): INVALID_SET_FILE_POINTER\n");
+		return S_FALSE;
+	}
 
     DWORD dwChunkSize;
-    DWORD dwChunkPosition;
-
+    DWORD dwChunkPosition; 
+	
     // check the file type, should be fourccWAVE or 'XWMA'
     FindChunk(hFile, fourccRIFF, dwChunkSize, dwChunkPosition);
     DWORD filetype;
     ReadChunkData(hFile, &filetype, sizeof(DWORD), dwChunkPosition);
     if (filetype != fourccWAVE)
     {
-		OutputDebugStringA("filetype != fourccWAVE\n");
-        return S_FALSE;
+		OutputDebugStringA("playAudio(): filetype != fourccWAVE\n");
+		return S_FALSE;
     }
 
     FindChunk(hFile, fourccFMT, dwChunkSize, dwChunkPosition);
@@ -397,28 +405,34 @@ HRESULT playAudio(
     BYTE *pDataBuffer = new BYTE[dwChunkSize];
     ReadChunkData(hFile, pDataBuffer, dwChunkSize, dwChunkPosition);
 
-    buffer.AudioBytes = dwChunkSize;      // size of the audio buffer in bytes
-    buffer.pAudioData = pDataBuffer;      // buffer containing audio data
+	buffer.AudioBytes = dwChunkSize;      // size of the audio buffer in bytes
+	buffer.pAudioData = pDataBuffer;      // buffer containing audio data
     buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer
 
     IXAudio2SourceVoice *pSourceVoice;
-    if (FAILED(hr = pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX *)&wfx)))
+    if (FAILED(hResult = pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX *)&wfx)))
     {
-        OutputDebugStringA("FAILED pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX*)&wfx)");
-        // cout << hr;
-    }
+		OutputDebugStringA("playAudio() : FAILED pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX*)&wfx)");
+		return hResult;
+	}
 
-    if (FAILED(hr = pSourceVoice->SubmitSourceBuffer(&buffer)))
+    if (FAILED(hResult = pSourceVoice->SubmitSourceBuffer(&buffer)))
     {
-        OutputDebugStringA("FAILED pSourceVoice->SubmitSourceBuffer(&buffer)");
-        // cout << hr;
-    }
+		OutputDebugStringA("playAudio() : FAILED pSourceVoice->SubmitSourceBuffer(&buffer)");
+		return hResult;
+	}
 
-    if (FAILED(hr = pSourceVoice->Start(0)))
+    if (FAILED(hResult = pSourceVoice->Start(0)))
     {
-        OutputDebugStringA("FAILED pSourceVoice->Start(0)");
-        // cout << hr;
-    }
+		OutputDebugStringA("playAudio() : FAILED pSourceVoice->Start(0)");
+		return hResult;
+	}else{
+		OutputDebugStringA("playAudio() : ");
+		OutputDebugStringA((LPCSTR)(strFileName));
+		OutputDebugStringA("\n");
+	}
+
+	return hResult;
 }
 
 
@@ -429,8 +443,8 @@ Main stuff
 LRESULT CALLBACK Win32MainWindowCallback(
 	HWND Window,   // handle to a window
 	UINT Message,  // window message we want to handle
-	WPARAM WParam, // width
-	LPARAM LParam) // Height
+	WPARAM WParam, // wide pointer (unsigned int)
+	LPARAM LParam) // long pointer (long(32 bitr))
 {
 	LRESULT Result = 0;
 
