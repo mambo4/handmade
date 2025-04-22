@@ -240,16 +240,16 @@ XAudio2 stuff
 
 internal void Win32InitXaudio2()
 {
-	HRESULT hr;
-	hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-	if (SUCCEEDED(hr))
+	HRESULT hResult;
+	hResult = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	if (SUCCEEDED(hResult))
 	{
 		OutputDebugStringA("CoInitializeEx() SUCCEEDED.");
 
-		if (SUCCEEDED(hr = XAudio2Create(&pXAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR)))
+		if (SUCCEEDED(hResult = XAudio2Create(&pXAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR)))
 		{
 			OutputDebugStringA("XAudio2Create() SUCCEEDED.");
-			if (SUCCEEDED(hr = pXAudio2->CreateMasteringVoice(&pMasterVoice)))
+			if (SUCCEEDED(hResult = pXAudio2->CreateMasteringVoice(&pMasterVoice)))
 			{
 				OutputDebugStringA("CreateMasteringVoice() SUCCEEDED.");
 			}
@@ -362,6 +362,9 @@ HRESULT playAudio(
     XAUDIO2_BUFFER buffer,
     HRESULT hResult
     )
+	/*
+	Back to episode 008 to try the bespoke square wave to buffer.
+	*/
 {
 	hResult=S_OK;
     HANDLE hFile = CreateFile(
@@ -385,27 +388,10 @@ HRESULT playAudio(
 		return S_FALSE;
 	}
 
-    DWORD dwChunkSize;
-    DWORD dwChunkPosition; 
-	
-    // check the file type, should be fourccWAVE or 'XWMA'
-    FindChunk(hFile, fourccRIFF, dwChunkSize, dwChunkPosition);
-    DWORD filetype;
-    ReadChunkData(hFile, &filetype, sizeof(DWORD), dwChunkPosition);
-    if (filetype != fourccWAVE)
-    {
-		OutputDebugStringA("playAudio(): filetype != fourccWAVE\n");
-		return S_FALSE;
-    }
+    DWORD dwDataSize;
+    BYTE *pDataBuffer = new BYTE[dwDataSize];
 
-    FindChunk(hFile, fourccFMT, dwChunkSize, dwChunkPosition);
-    ReadChunkData(hFile, &wfx, dwChunkSize, dwChunkPosition);
-
-    FindChunk(hFile, fourccDATA, dwChunkSize, dwChunkPosition);
-    BYTE *pDataBuffer = new BYTE[dwChunkSize];
-    ReadChunkData(hFile, pDataBuffer, dwChunkSize, dwChunkPosition);
-
-	buffer.AudioBytes = dwChunkSize;      // size of the audio buffer in bytes
+	buffer.AudioBytes = dwDataSize;      // size of the audio buffer in bytes
 	buffer.pAudioData = pDataBuffer;      // buffer containing audio data
     buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer
 
@@ -435,6 +421,92 @@ HRESULT playAudio(
 	return hResult;
 }
 
+HRESULT playAudioFile(
+	TCHAR *strFileName,
+	IXAudio2 *pXAudio2,
+	IXAudio2MasteringVoice *pMasterVoice,
+	WAVEFORMATEXTENSIBLE wfx,
+	XAUDIO2_BUFFER buffer,
+	HRESULT hResult)
+	/*
+	copypasta from MSDN, hacked to work. This does not work as intended. WAV data is loaded and played as as continous loop
+	Not a single 1-off trigger of the sound. Maybe future version of HMH will reveal how to do so.
+	*/
+{
+	hResult = S_OK;
+	HANDLE hFile = CreateFile(
+		strFileName,
+		GENERIC_READ,
+		FILE_SHARE_READ,
+		NULL,
+		OPEN_EXISTING,
+		0,
+		NULL);
+
+	if (INVALID_HANDLE_VALUE == hFile)
+	{
+		OutputDebugStringA("playAudio(): INVALID_HANDLE_VALUE\n");
+		return S_FALSE;
+	}
+
+	if (INVALID_SET_FILE_POINTER == SetFilePointer(hFile, 0, NULL, FILE_BEGIN))
+	{
+		OutputDebugStringA("playAudio(): INVALID_SET_FILE_POINTER\n");
+		return S_FALSE;
+	}
+
+	DWORD dwChunkSize;
+	DWORD dwChunkPosition;
+
+	// check the file type, should be fourccWAVE or 'XWMA'
+	FindChunk(hFile, fourccRIFF, dwChunkSize, dwChunkPosition);
+	DWORD filetype;
+	ReadChunkData(hFile, &filetype, sizeof(DWORD), dwChunkPosition);
+	if (filetype != fourccWAVE)
+	{
+		OutputDebugStringA("playAudio(): filetype != fourccWAVE\n");
+		return S_FALSE;
+	}
+
+	FindChunk(hFile, fourccFMT, dwChunkSize, dwChunkPosition);
+	ReadChunkData(hFile, &wfx, dwChunkSize, dwChunkPosition);
+
+	FindChunk(hFile, fourccDATA, dwChunkSize, dwChunkPosition);
+	BYTE *pDataBuffer = new BYTE[dwChunkSize];
+	ReadChunkData(hFile, pDataBuffer, dwChunkSize, dwChunkPosition);
+
+	buffer.AudioBytes = dwChunkSize;	  // size of the audio buffer in bytes
+	buffer.pAudioData = pDataBuffer;	  // buffer containing audio data
+	buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer
+	buffer.LoopCount =1;
+
+	IXAudio2SourceVoice *pSourceVoice;
+	if (FAILED(hResult = pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX *)&wfx)))
+	{
+		OutputDebugStringA("playAudio() : FAILED pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX*)&wfx)");
+		return hResult;
+	}
+
+	if (FAILED(hResult = pSourceVoice->SubmitSourceBuffer(&buffer)))
+	{
+		OutputDebugStringA("playAudio() : FAILED pSourceVoice->SubmitSourceBuffer(&buffer)");
+		return hResult;
+	}
+
+	if (FAILED(hResult = pSourceVoice->Start(0)))
+	{
+		OutputDebugStringA("playAudio() : FAILED pSourceVoice->Start(0)");
+		return hResult;
+	}
+	else
+	{
+		OutputDebugStringA("playAudio() : ");
+		OutputDebugStringA((LPCSTR)(strFileName));
+		OutputDebugStringA("\n");
+	}
+
+	return hResult;
+}
 
 /***************************************************
 Main stuff
@@ -614,6 +686,13 @@ int CALLBACK WinMain(
 			int YOffset = 0;
 			int RedOffset = 0;
 			int BlueOffset = 0;
+
+			//audio
+			int SamplesPerSecond=41000;
+			int SquareWaveCounter=0;
+			int Hz=256;
+			int SquareWavePeriod = SamplesPerSecond/Hz;
+
 			// haptics
 			uint16 VibrationSpeed = 0;
 
@@ -709,12 +788,12 @@ int CALLBACK WinMain(
 
 						if (XButton)
 						{
-							playAudio(boopFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
+							playAudioFile(boopFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
 						}
 
 						if (YButton)
 						{
-							playAudio(bipFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
+							playAudioFile(bipFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
 						}
 					}
 					else
@@ -729,9 +808,14 @@ int CALLBACK WinMain(
 				Win32RumbleController(VibrationSpeed);
 				// RenderGrid(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
 				RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
+				// AUDIO TEST: write to buffer
+				// Xaudio2 buffer does not need to be locked
+				// how to generate squarewave data for playAudio?
+				
+
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
 				Win32DisplayBufferInWindow(&GlobalBackBuffer, DeviceContext, Dimension.Width, Dimension.Height);
-
+				
 				//perf - before or after releaseDC?
 				int64 EndCycleCount=__rdtsc();
 				LARGE_INTEGER EndCounter;

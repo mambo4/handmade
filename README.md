@@ -69,9 +69,10 @@ W:\handmade\code\win32_handmade.cpp(582): note: There is no context in which thi
 @ MSDN, DWORD is 32-bit unsigned integer
 LPDWORD has no documentation page of its own
 just this type declaration which I don't underdstand
+
 ```
  typedef unsigned long DWORD, *PDWORD, *LPDWORD;
-``
+```
 
 which makes LPDWORD a pointer, I think? Which is also unlike what Casey dealt with.
 
@@ -79,4 +80,4 @@ So I'm tryign to figure what needs to be changed to LPDWORD and what doesn't.
 Do all DWORDS need to be LPDWORDS ? Can I Cast DWORDS to LPDWORDS on need?
 
 https://www.youtube.com/watch?v=M3ehI_LpmGw&ab_channel=DoomPenguin
-https://www.youtube.com/watch?v=M3ehI_LpmGw&ab_channel=DoomPenguin
+
