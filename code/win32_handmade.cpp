@@ -81,7 +81,7 @@ global_variable win32_offscreen_buffer GlobalBackBuffer;
 global_variable IXAudio2 *pXAudio2 = nullptr;
 global_variable IXAudio2MasteringVoice *pMasterVoice = nullptr;
 global_variable HRESULT hr;
-
+global_variable bool32 soundIsPlaying = false;
 //assets
 global_variable TCHAR *boopFile = TEXT("W:/handmade/assets/audio/bip.wav");
 global_variable TCHAR *bipFile = TEXT("W:/handmade/assets/audio/boop.wav");
@@ -355,6 +355,28 @@ HRESULT ReadChunkData(HANDLE hFile, void *buffer, DWORD buffersize, DWORD buffer
     return hResult;
 }
 
+class VoiceCallback : public 
+{
+public:
+
+	void STDMETHODCALLTYPE OnBufferStart(void *) override
+	{
+		soundIsPlaying = false;
+	}
+	void STDMETHODCALLTYPE OnBufferEnd(void *pBufferContext) override
+	{
+		// Audio buffer finished playing
+		soundIsPlaying = false; // set global soundIsPlaying to false
+	}
+	// Implement other methods as empty
+	void STDMETHODCALLTYPE OnVoiceProcessingPassStart(UINT32) override {}
+	void STDMETHODCALLTYPE OnVoiceProcessingPassEnd() override {}
+	void STDMETHODCALLTYPE OnStreamEnd() override {}
+
+	void STDMETHODCALLTYPE OnLoopEnd(void *) override {}
+	void STDMETHODCALLTYPE OnVoiceError(void *, HRESULT) override {}
+};
+
 HRESULT playAudio(
     TCHAR *strFileName,
     IXAudio2 *pXAudio2, 
@@ -512,6 +534,7 @@ HRESULT playAudioFile(
 
 	return hResult;
 }
+
 
 /***************************************************
 Main stuff
@@ -693,6 +716,7 @@ int CALLBACK WinMain(
 			int BlueOffset = 0;
 
 			//audio
+
 			int SamplesPerSecond=41000;
 			int SquareWaveCounter=0;
 			int Hz=256;
@@ -793,12 +817,19 @@ int CALLBACK WinMain(
 
 						if (XButton)
 						{
-							playAudioFile(boopFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
+							if (! soundIsPlaying)
+							{
+
+								hr=playAudioFile(boopFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
+							}
 						}
 
 						if (YButton)
 						{
-							playAudioFile(bipFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
+							if (!soundIsPlaying)
+							{
+								playAudioFile(bipFile, pXAudio2, pMasterVoice, wfx, xaudioBuffer, hr);
+							}
 						}
 					}
 					else

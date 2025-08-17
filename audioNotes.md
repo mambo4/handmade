@@ -109,7 +109,7 @@ Win32InitDSound(void)
 - create LPDIRECTSOUNDBUFFER SecondaryBuffer for atcual soudn use
 
 all of these are DirectSound ojs/methods
-no platform independent stuff
+no platform independent stuff (yet?)
 ### Xaudio Equivalents
 
 - DirectSoundCreate() == XAudio2Create()
@@ -139,7 +139,7 @@ DWORD WritePointer;
 DWORD BytesToWrite;
 
 VOID *Region1; // ptr to global buffer?
-DWORD Region1Size; // sizeof global buiffer?
+DWORD Region1Size; // sizeof global buffer?
 int16 *SampleOut=(int16*)Region1
 DWORD RegionSampleCount =Region1Size/BytesPerSample //
 for(DWORD SampleIndex=0; SampleIndex < Region1Size) // global audio buffer size?
@@ -183,3 +183,5 @@ voiceState.SamplesPlayed //playback cursor positon?  in samples,since START
 
 SampleWriteIndex =voiceState.SamplesPlayed*bytesPerSample%BufferSize; //I think this is how in Xaudio2
 ```
+
+### We need a NOT windows audio buffer to control!!!
