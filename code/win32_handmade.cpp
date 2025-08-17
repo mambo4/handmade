@@ -5,6 +5,7 @@
 #pragma comment(lib, "xaudio2.lib")
 
 #include <Windows.h>
+#include <cstdio>
 #include <stdint.h>		// for access to unit8_t type
 #include <xinput.h>		// for xbox controller
 #include <xaudio2.h>	// for audio
@@ -82,8 +83,8 @@ global_variable IXAudio2MasteringVoice *pMasterVoice = nullptr;
 global_variable HRESULT hr;
 
 //assets
-global_variable TCHAR *boopFile = TEXT("W:/handmade/handmade/assets/audio/bip.wav");
-global_variable TCHAR *bipFile = TEXT("W:/handmade/handmade/assets/audio/boop.wav");
+global_variable TCHAR *boopFile = TEXT("W:/handmade/assets/audio/bip.wav");
+global_variable TCHAR *bipFile = TEXT("W:/handmade/assets/audio/boop.wav");
 
 // consts
 const float PI = 3.14159265359;
@@ -378,7 +379,9 @@ HRESULT playAudio(
 
     if (INVALID_HANDLE_VALUE == hFile)
     {
-		OutputDebugStringA("playAudio(): INVALID_HANDLE_VALUE\n");
+		char errorMsg[256];
+		sprintf_s(errorMsg, "playAudio(): INVALID_HANDLE_VALUE %s\n", strFileName);
+		OutputDebugStringA(errorMsg);
 		return S_FALSE;
 	}
 
@@ -445,7 +448,9 @@ HRESULT playAudioFile(
 
 	if (INVALID_HANDLE_VALUE == hFile)
 	{
-		OutputDebugStringA("playAudio(): INVALID_HANDLE_VALUE\n");
+		char errorMsg[256];
+		sprintf_s(errorMsg, "playAudio(): INVALID_HANDLE_VALUE %s\n", strFileName);
+		OutputDebugStringA(errorMsg);
 		return S_FALSE;
 	}
 
