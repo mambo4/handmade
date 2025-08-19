@@ -355,7 +355,7 @@ HRESULT ReadChunkData(HANDLE hFile, void *buffer, DWORD buffersize, DWORD buffer
     return hResult;
 }
 
-class VoiceCallback : public 
+class VoiceCallback : public IXAudio2VoiceCallback
 {
 public:
 
@@ -453,10 +453,6 @@ HRESULT playAudioFile(
 	WAVEFORMATEXTENSIBLE wfx,
 	XAUDIO2_BUFFER buffer,
 	HRESULT hResult)
-	/*
-	copypasta from MSDN, hacked to work. This does not work as intended. WAV data is loaded and played as as continous loop
-	Not a single 1-off trigger of the sound. Maybe future version of HMH will reveal how to do so.
-	*/
 {
 	hResult = S_OK;
 	HANDLE hFile = CreateFile(
@@ -658,7 +654,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
 	{
 
 		// OutputDebugStringA("DEFAULT\n");
-		Result = DefWindowProc(Window, Message, WParam, LParam);
+		Result = DefWindowProcA(Window, Message, WParam, LParam);
 	}
 	break;
 	}
@@ -726,11 +722,11 @@ int CALLBACK WinMain(
 			uint16 VibrationSpeed = 0;
 
 			// sound
-			bool SoundOn = false;
+			bool32 SoundOn = false;
 			Win32InitXaudio2();
 			WAVEFORMATEXTENSIBLE wfx = {0};
 			XAUDIO2_BUFFER xaudioBuffer = {0};
-
+			
 			//perf
 			LARGE_INTEGER LastCounter;
 			QueryPerformanceCounter(&LastCounter);
@@ -791,19 +787,20 @@ int CALLBACK WinMain(
 						/*******************************************************
 						 *  GAME LOOP :simulate/update
 						 ********************************************************/
-						XOffset -= LStickX >> 12;
-						YOffset += LStickY >> 12;
+						XOffset -= LStickX /8192;
+						YOffset += LStickY /8192;
 						RedOffset = 0;
 
 						if (AButton)
 						{
 							RedOffset = 255;
+							VibrationSpeed = 0;
 						}
 
 						if (BButton)
 						{
 							RedOffset = 128;
-							// VibrationSpeed = 1000;
+							VibrationSpeed = 1000;
 						}
 
 						if (XButton || YButton)
@@ -819,8 +816,7 @@ int CALLBACK WinMain(
 						{
 							if (! soundIsPlaying)
 							{
-
-								hr=playAudioFile(boopFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
+								playAudioFile(boopFile,pXAudio2,pMasterVoice,wfx,xaudioBuffer,hr);
 							}
 						}
 
