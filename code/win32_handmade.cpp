@@ -4,17 +4,19 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "xaudio2.lib")
 
+// these #defines re use 'static' with more clarfied intent
+#define internal static
+#define local_persist static
+#define global_variable static
+
 #include <Windows.h>
-#include <cstdio>
 #include <stdint.h>		// for access to unit8_t type
 #include <xinput.h>		// for xbox controller
 #include <xaudio2.h>	// for audio
 #include <combaseapi.h> // to intilize COM for Xaudio2
 
-// these #defines reuse 'static' with more clarfied intent
-#define internal static
-#define local_persist static
-#define global_variable static
+
+
 
 // these typedefs redefine types from stdint.h
 // for easier typing than 'unsigned char' etc
@@ -29,6 +31,7 @@ typedef int32_t int32;
 typedef int64_t int64;
 
 typedef int32 bool32;
+#include "handmade.cpp"
 
 struct win32_offscreen_buffer
 {
@@ -114,27 +117,6 @@ win32_window_dimension Win32GetWindowDimension(HWND Window)
 	Result.Width = ClientRect.right - ClientRect.left;
 	Result.Height = ClientRect.bottom - ClientRect.top;
 	return (Result);
-}
-
-internal void RenderWeirdGradient(win32_offscreen_buffer *Buffer, int XOffset, int YOffset, int RedOffset)
-{
-	uint8 *Row = (uint8 *)Buffer->Memory; // cast the void pointer BitmapMemory to unsigned 8 bit int
-	for (int Y = 0; Y < Buffer->Height; ++Y)
-	{
-		uint32 *Pixel = (uint32 *)Row; // pointer to first RGBA 32bit pixel of Row: 0xAARRGGBB
-		for (int X = 0; X < Buffer->Width; ++X)
-		{
-			uint8 A = 0x00;					// Alpha
-			uint8 B = (uint8)(X + XOffset); // Blue
-			uint8 G = (uint8)(Y + YOffset); // Green
-			uint8 R = (uint8)(RedOffset);	// red
-
-			uint32 BGRA = (uint32)((B) | (G << 8) | (R << 16) | (A << 24)); // Comine 8 bit components by bitwise shift and bitwise OR
-			*Pixel = BGRA;
-			++Pixel;
-		}
-		Row += Buffer->Pitch;
-	}
 }
 
 internal void RenderGrid(win32_offscreen_buffer *Buffer, int XOffset, int YOffset, int RedOffset)
@@ -402,7 +384,7 @@ HRESULT playAudio(
     if (INVALID_HANDLE_VALUE == hFile)
     {
 		char errorMsg[256];
-		sprintf_s(errorMsg, "playAudio(): INVALID_HANDLE_VALUE %s\n", strFileName);
+		wsprintfA(errorMsg, "playAudio(): INVALID_HANDLE_VALUE %s\n", strFileName);
 		OutputDebugStringA(errorMsg);
 		return S_FALSE;
 	}
@@ -467,7 +449,7 @@ HRESULT playAudioFile(
 	if (INVALID_HANDLE_VALUE == hFile)
 	{
 		char errorMsg[256];
-		sprintf_s(errorMsg, "playAudio(): INVALID_HANDLE_VALUE %s\n", strFileName);
+		wsprintfA(errorMsg, "playAudio(): INVALID_HANDLE_VALUE %s\n", strFileName);
 		OutputDebugStringA(errorMsg);
 		return S_FALSE;
 	}
@@ -669,6 +651,7 @@ int CALLBACK WinMain(
 {
 
 	Win32LoadXInput();
+
 	WNDCLASSA WindowClass = {}; //
 
 	Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
@@ -677,7 +660,7 @@ int CALLBACK WinMain(
 	WindowClass.lpfnWndProc = Win32MainWindowCallback; // pointer to a function that defines window's response to events
 	WindowClass.hInstance = Instance;				   // reference to the instance of this window, from WinMain function.(Could also use GetModuleHandle)
 	// WindowClass.hIcon = ; // icon for window
-	WindowClass.lpszClassName = "handmadeHeroWindowClass";
+	WindowClass.lpszClassName = " ";
 
 	//perf
 	LARGE_INTEGER PerformanceFrequencyResult;
@@ -768,16 +751,16 @@ int CALLBACK WinMain(
 						// Controller is connected
 						XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
 
-						bool Up = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
-						bool Down = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
-						bool Left = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
-						bool Right = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
-						bool Start = (Pad->wButtons & XINPUT_GAMEPAD_START);
-						bool Back = (Pad->wButtons & XINPUT_GAMEPAD_BACK);
-						bool AButton = (Pad->wButtons & XINPUT_GAMEPAD_A);
-						bool BButton = (Pad->wButtons & XINPUT_GAMEPAD_B);
-						bool XButton = (Pad->wButtons & XINPUT_GAMEPAD_X);
-						bool YButton = (Pad->wButtons & XINPUT_GAMEPAD_Y);
+						bool32 Up = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
+						bool32 Down = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
+						bool32 Left = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
+						bool32 Right = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+						bool32 Start = (Pad->wButtons & XINPUT_GAMEPAD_START);
+						bool32 Back = (Pad->wButtons & XINPUT_GAMEPAD_BACK);
+						bool32 AButton = (Pad->wButtons & XINPUT_GAMEPAD_A);
+						bool32 BButton = (Pad->wButtons & XINPUT_GAMEPAD_B);
+						bool32 XButton = (Pad->wButtons & XINPUT_GAMEPAD_X);
+						bool32 YButton = (Pad->wButtons & XINPUT_GAMEPAD_Y);
 
 						int16 LStickX = Pad->sThumbLX;
 						int16 LStickY = Pad->sThumbLY;
@@ -838,13 +821,17 @@ int CALLBACK WinMain(
 				 ********************************************************/
 				HDC DeviceContext = GetDC(Window);
 				Win32RumbleController(VibrationSpeed);
-				// RenderGrid(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
-				RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
-				// AUDIO TEST: write to buffer
-				// Xaudio2 buffer does not need to be locked
-				// how to generate squarewave data for playAudio?
-				
 
+				game_offscreen_buffer Buffer = {};
+				Buffer.Memory = GlobalBackBuffer.Memory;
+				Buffer.Width = GlobalBackBuffer.Width;	
+				Buffer.Height = GlobalBackBuffer.Height;
+				Buffer.Pitch = GlobalBackBuffer.Pitch;
+
+				GameUpdateAndRender(&Buffer, XOffset, YOffset, RedOffset);
+
+				// RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
+				
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
 				Win32DisplayBufferInWindow(&GlobalBackBuffer, DeviceContext, Dimension.Width, Dimension.Height);
 				
@@ -857,11 +844,12 @@ int CALLBACK WinMain(
 				int32 MSPerFrame=(int32)((1000*CounterElapsed)/PerCountFrequency);
 				int32 FPS=(PerCountFrequency/CounterElapsed);
 				int32 MCPF= (int32)(CyclesElapsed/ (1000*1000));
-				//display result
+
+#if 0				
 				char Buffer[200];
 				wsprintfA(Buffer, "mspf: %d\t fps: %d;\t mcpf: %d\n",MSPerFrame,FPS, MCPF); 
 				OutputDebugStringA(Buffer);
-
+#endif
 				LastCounter=EndCounter;
 				LastCycleCount=EndCycleCount;
 
