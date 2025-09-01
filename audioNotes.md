@@ -184,4 +184,39 @@ voiceState.SamplesPlayed //playback cursor positon?  in samples,since START
 SampleWriteIndex =voiceState.SamplesPlayed*bytesPerSample%BufferSize; //I think this is how in Xaudio2
 ```
 
-### We need a NOT windows audio buffer to control!!!
+# We need a NOT windows audio buffer to control!!!
+## [Day 12]
+[Add a sound output fn & variables to GameUpdateAndRender in handmade.h]( https://youtu.be/5YhR2zAkQmo?t=671)
+
+[add a sound buffer struct to handmade.h](https://youtu.be/5yhr2zakqmo?t=927)
+
+[add GameoutputSound to handmad.cpp](https://youtu.be/5YhR2zAkQmo)
+
+[creat sounddbuffer in platformlayer win32_handmade.cpp](https://youtu.be/5YhR2zAkQmo?t=1606)
+
+[allocate sample memeory to the stack](https://youtu.be/5YhR2zAkQmo?t=2760)
+
+
+https://www.reddit.com/r/gamedev/comments/6bgay2/i_am_creating_an_audio_engine_for_my_game_using/
+
+    Typically that sort of dynamic music would be accomplished by dividing the soundtrack into "stems," separate audio sources containing the individual elements that can be added or removed during the game. You would want to ask your composer to export the soundtrack as separate wavs (or oggs or whatever) with the appropriate tracks toggled for each. These would then be kept in sync at runtime by playing them simultaneously and adjusting their volumes over time to bring elements in as they're desired.
+
+    You could implement this with multiple voices, one per stem, or you could use a single voice and mix the stems yourself, a sample at a time, before submitting it to the voice. The latter might be preferable for ensuring all the stems stay perfectly in sync even if the streaming thread falls behind a bit here or there.
+
+    As to your second question, sound effects don't have to be played in a separate thread if they can be fully loaded into memory and won't be streaming data from disk to a fixed-size ring buffer. But in my experience, it may be helpful to treat all audio the same regardless of source. The most recent version of my engine's audio code handles all playback from all sources in a thread, and abstracts away the location of the audio source (memory or disk), so I have fewer one-off implementations for different use cases.
+
+
+No, XAudio2 does not have a built-in ring buffer. Instead, it uses a queue of individual audio buffers that an application must manage. This is different from a typical ring buffer, where the buffer is a single, continuous block of memory that wraps around. [1, 2, 3, 4, 5]  
+For tasks like streaming audio, you must implement the ring buffer behavior yourself by managing a queue of discrete  objects. 
+How to implement streaming with XAudio2 The standard practice for streaming large audio files or continuous audio input in XAudio2 is to use a separate thread to manage the buffer queue. The process involves these steps: 
+
+1. Allocate buffers: Create multiple  structures and their corresponding memory blocks. 
+2. Submit to the queue: Fill the first available buffer with audio data and submit it to a source voice using . 
+3. Process with callbacks: 
+
+	• Implement an  interface to receive event notifications from the source voice. 
+	• When a buffer is finished playing, the  callback is triggered. This notifies your application that the buffer is available to be refilled. 
+
+4. Loop and refill: In your streaming thread, wait for the  event. When it arrives, refill the now-available buffer with new audio data from your source (e.g., from a file or network stream) and re-submit it to the queue. 
+5. Stop gracefully: When you reach the end of the audio stream, submit the final buffer with the  flag to signal the voice that no more data will be sent. [2, 6, 7, 8, 9]  
+

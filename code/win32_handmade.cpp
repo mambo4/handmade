@@ -14,6 +14,7 @@
 #include <xinput.h>		// for xbox controller
 #include <xaudio2.h>	// for audio
 #include <combaseapi.h> // to intilize COM for Xaudio2
+#include <math.h>		// for sin
 
 
 
@@ -24,13 +25,18 @@ typedef uint8_t uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
+typedef int32_t bool32;
 
 typedef int8_t int8;
 typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
 
-typedef int32 bool32;
+typedef float real32;
+typedef double real64;
+const real32 Pi32 = 3.14159265359f;
+
+// include main game .cpp AFTER type declarations
 #include "handmade.cpp"
 
 struct win32_offscreen_buffer
@@ -85,6 +91,7 @@ global_variable IXAudio2 *pXAudio2 = nullptr;
 global_variable IXAudio2MasteringVoice *pMasterVoice = nullptr;
 global_variable HRESULT hr;
 global_variable bool32 soundIsPlaying = false;
+global_variable int toneHz = 256;
 //assets
 global_variable TCHAR *boopFile = TEXT("W:/handmade/assets/audio/bip.wav");
 global_variable TCHAR *bipFile = TEXT("W:/handmade/assets/audio/boop.wav");
@@ -119,6 +126,7 @@ win32_window_dimension Win32GetWindowDimension(HWND Window)
 	return (Result);
 }
 
+/*
 internal void RenderGrid(win32_offscreen_buffer *Buffer, int XOffset, int YOffset, int RedOffset)
 {
 	const uint32 BLACK = 0x00000000;
@@ -172,7 +180,7 @@ internal void RenderGrid(win32_offscreen_buffer *Buffer, int XOffset, int YOffse
 		Row += Buffer->Pitch;
 	}
 }
-
+*/
 internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 {
 	if (Buffer->Memory)
@@ -316,7 +324,7 @@ HRESULT FindChunk(HANDLE hFile, DWORD fourcc, DWORD &dwChunkSize, DWORD &dwChunk
         dwOffset += dwChunkDataSize;
         if (bytesRead >= dwRIFFDataSize)
             return S_FALSE;
-    }
+    }   
     return S_OK;
 }
 
@@ -437,6 +445,8 @@ HRESULT playAudioFile(
 	HRESULT hResult)
 {
 	hResult = S_OK;
+
+	// windows file io stuff : Did OS get the file correctly?
 	HANDLE hFile = CreateFile(
 		strFileName,
 		GENERIC_READ,
@@ -459,6 +469,7 @@ HRESULT playAudioFile(
 		OutputDebugStringA("playAudio(): INVALID_SET_FILE_POINTER\n");
 		return S_FALSE;
 	}
+
 
 	DWORD dwChunkSize;
 	DWORD dwChunkPosition;
@@ -513,16 +524,36 @@ HRESULT playAudioFile(
 	return hResult;
 }
 
+HRESULT FillXaudio2SoundBuffer(
+	IXAudio2 *pXAudio2,
+	IXAudio2MasteringVoice *pMasterVoice,
+	WAVEFORMATEXTENSIBLE wfx,
+	XAUDIO2_BUFFER buffer,
+	HRESULT hResult)
+	{
+		return hResult;
+	}
 
-/***************************************************
-Main stuff
-***************************************************/
+HRESULT PlayXaudio2SoundBuffer(
+		IXAudio2 *pXAudio2,
+		IXAudio2MasteringVoice *pMasterVoice,
+		WAVEFORMATEXTENSIBLE wfx,
+		XAUDIO2_BUFFER buffer,
+		HRESULT hResult)
+	{
+		return hResult;
+	}
 
-LRESULT CALLBACK Win32MainWindowCallback(
-	HWND Window,   // handle to a window
-	UINT Message,  // window message we want to handle
-	WPARAM WParam, // wide pointer (unsigned int)
-	LPARAM LParam) // long pointer (long(32 bitr))
+
+	/***************************************************
+	Main stuff
+	***************************************************/
+
+	LRESULT CALLBACK Win32MainWindowCallback(
+		HWND Window,   // handle to a window
+		UINT Message,  // window message we want to handle
+		WPARAM WParam, // wide pointer (unsigned int)
+		LPARAM LParam) // long pointer (long(32 bitr))
 {
 	LRESULT Result = 0;
 
@@ -817,10 +848,13 @@ int CALLBACK WinMain(
 					}
 				}
 				/********************************************************
-				 *  GAME LOOP : Render
+				 * MAIN GAME LOOP : Update & Render
 				 ********************************************************/
+
 				HDC DeviceContext = GetDC(Window);
 				Win32RumbleController(VibrationSpeed);
+
+				game_sound_output_buffer SoundBuffer = {};
 
 				game_offscreen_buffer Buffer = {};
 				Buffer.Memory = GlobalBackBuffer.Memory;
@@ -828,7 +862,7 @@ int CALLBACK WinMain(
 				Buffer.Height = GlobalBackBuffer.Height;
 				Buffer.Pitch = GlobalBackBuffer.Pitch;
 
-				GameUpdateAndRender(&Buffer, XOffset, YOffset, RedOffset);
+				GameUpdateAndRender(&Buffer, XOffset, YOffset, RedOffset,&SoundBuffer, toneHz);
 
 				// RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset, RedOffset);
 				
